@@ -1,0 +1,120 @@
+import java.io.*;
+import java.net.*;
+import java.util.*;
+
+public class ChatApp {
+
+    static Set<ClientHandler> clients = new HashSet<>();
+
+    public static void main(String[] args) throws Exception {
+
+        Scanner sc = new Scanner(System.in);
+        System.out.println("Type 1 for SERVER");
+        System.out.println("Type 2 for CLIENT");
+        System.out.print("Enter choice: ");
+        int choice = sc.nextInt();
+        sc.nextLine();
+
+        if (choice == 1) {
+            startServer();
+        } else {
+            startClient();
+        }
+    }
+
+    // ================= SERVER =================
+    static void startServer() {
+        int port = 5000;
+        System.out.println("Server started on port " + port);
+
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
+            while (true) {
+                Socket socket = serverSocket.accept();
+                ClientHandler handler = new ClientHandler(socket);
+                clients.add(handler);
+                new Thread(handler).start();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    static void broadcast(String msg, ClientHandler sender) {
+        for (ClientHandler c : clients) {
+            if (c != sender) {
+                c.send(msg);
+            }
+        }
+    }
+
+    // ================= CLIENT =================
+    static void startClient() {
+        try {
+            Socket socket = new Socket("localhost", 5000);
+            System.out.println("Connected to chat server");
+
+            BufferedReader in =
+                    new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            PrintWriter out =
+                    new PrintWriter(socket.getOutputStream(), true);
+
+            BufferedReader keyboard =
+                    new BufferedReader(new InputStreamReader(System.in));
+
+            // Read messages
+            new Thread(() -> {
+                try {
+                    String msg;
+                    while ((msg = in.readLine()) != null) {
+                        System.out.println(msg);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }).start();
+
+            // Send messages
+            String msg;
+            while ((msg = keyboard.readLine()) != null) {
+                out.println(msg);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+// ================= CLIENT HANDLER =================
+class ClientHandler implements Runnable {
+
+    Socket socket;
+    PrintWriter out;
+    BufferedReader in;
+
+    ClientHandler(Socket socket) {
+        this.socket = socket;
+    }
+
+    public void run() {
+        try {
+            in = new BufferedReader(
+                    new InputStreamReader(socket.getInputStream()));
+            out = new PrintWriter(
+                    socket.getOutputStream(), true);
+
+            out.println("Welcome to the chat!");
+
+            String msg;
+            while ((msg = in.readLine()) != null) {
+                ChatApp.broadcast(msg, this);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    void send(String msg) {
+        out.println(msg);
+    }
+}
